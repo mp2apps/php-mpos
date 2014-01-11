@@ -39,11 +39,22 @@ $smarty->assign('CRON_DISABLED', $cron_disabled);
 // Fetch user information
 $aUserInfo = array(
   'total' => $user->getCount(),
+  'active' => $statistics->getCountAllActiveUsers(),
   'locked' => $user->getCountFiltered('is_locked', 1),
   'admins' => $user->getCountFiltered('is_admin', 1),
   'nofees' => $user->getCountFiltered('no_fees', 1)
 );
 $smarty->assign('USER_INFO', $aUserInfo);
+
+// Fetch invitation information
+if (!$setting->getValue('disable_invitations')) {
+  $aInvitationInfo = array(
+    'total' => $invitation->getCount(),
+    'activated' => $invitation->getCountFiltered('is_activated', 1),
+    'outstanding' => $invitation->getCountFiltered('is_activated', 0)
+  );
+  $smarty->assign('INVITATION_INFO', $aInvitationInfo);
+}
 
 // Wallet status
 $smarty->assign('WALLET_ERROR', $aGetInfo['errors']);

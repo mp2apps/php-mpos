@@ -694,9 +694,9 @@ class Statistics extends Base {
         IFNULL(ROUND(SUM(IF(s.difficulty=0, pow(2, (" . $this->config['difficulty'] . " - 16)), s.difficulty)) * POW(2, " . $this->config['target_bits'] . ") / 3600 / 1000), 0) AS hashrate,
         HOUR(s.time) AS hour
       FROM " . $this->share->getTableName() . " AS s, accounts AS a
-      WHERE time < NOW() - INTERVAL 1 HOUR
+      WHERE time <= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(NOW())/(60*60))*(60*60))
+        AND time >= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(NOW())/(60*60))*(60*60)) - INTERVAL 24 HOUR
         AND our_result = 'Y'
-        AND time > NOW() - INTERVAL 25 HOUR
         AND a.username = SUBSTRING_INDEX( s.username, '.', 1 )
         AND a.id = ?
       GROUP BY HOUR(time)
@@ -706,9 +706,9 @@ class Statistics extends Base {
         IFNULL(ROUND(SUM(IF(s.difficulty=0, pow(2, (" . $this->config['difficulty'] . " - 16)), s.difficulty)) * POW(2, " . $this->config['target_bits'] . ") / 3600 / 1000), 0) AS hashrate,
         HOUR(s.time) AS hour
       FROM " . $this->share->getArchiveTableName() . " AS s, accounts AS a
-      WHERE time < NOW() - INTERVAL 1 HOUR
+      WHERE time <= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(NOW())/(60*60))*(60*60))
+        AND time >= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(NOW())/(60*60))*(60*60)) - INTERVAL 24 HOUR
         AND our_result = 'Y'
-        AND time > NOW() - INTERVAL 25 HOUR
         AND a.username = SUBSTRING_INDEX( s.username, '.', 1 )
         AND a.id = ?
       GROUP BY HOUR(time)");
@@ -737,8 +737,8 @@ class Statistics extends Base {
       	IFNULL(ROUND(SUM(IF(s.difficulty=0, pow(2, (" . $this->config['difficulty'] . " - 16)), s.difficulty)) * POW(2, " . $this->config['target_bits'] . ") / 3600 / 1000), 0) AS hashrate,
         HOUR(s.time) AS hour
       FROM " . $this->share->getTableName() . " AS s
-      WHERE time < NOW() - INTERVAL 1 HOUR
-        AND time > NOW() - INTERVAL 25 HOUR
+      WHERE time <= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(NOW())/(60*60))*(60*60))
+        AND time >= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(NOW())/(60*60))*(60*60)) - INTERVAL 24 HOUR
         AND our_result = 'Y'
       GROUP BY HOUR(time)
       UNION
@@ -747,8 +747,8 @@ class Statistics extends Base {
         IFNULL(ROUND(SUM(IF(s.difficulty=0, pow(2, (" . $this->config['difficulty'] . " - 16)), s.difficulty)) * POW(2, " . $this->config['target_bits'] . ") / 3600 / 1000), 0) AS hashrate,
         HOUR(s.time) AS hour
       FROM " . $this->share->getArchiveTableName() . " AS s
-      WHERE time < NOW() - INTERVAL 1 HOUR
-        AND time > NOW() - INTERVAL 25 HOUR
+      WHERE time <= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(NOW())/(60*60))*(60*60))
+        AND time >= FROM_UNIXTIME(FLOOR(UNIX_TIMESTAMP(NOW())/(60*60))*(60*60)) - INTERVAL 24 HOUR
         AND our_result = 'Y'
       GROUP BY HOUR(time)");
     if ($this->checkStmt($stmt) && $stmt->execute() && $result = $stmt->get_result()) {
@@ -919,6 +919,24 @@ class Statistics extends Base {
       }
     }
     return round($pps_reward / (pow(2, $this->config['target_bits']) * $dDifficulty), 12);
+  }
+
+  /**
+   * Get all currently active users in the past 2 minutes
+   * @param interval int Time in seconds to fetch shares from
+   * @return data mixed int count if any users are active, false otherwise
+   **/
+  public function getCountAllActiveUsers($interval=120) {
+    $this->debug->append("STA " . __METHOD__, 4);
+    if ($data = $this->memcache->get(__FUNCTION__)) return $data;
+    $stmt = $this->mysqli->prepare("
+      SELECT COUNT(DISTINCT(SUBSTRING_INDEX( `username` , '.', 1 ))) AS total
+      FROM "  . $this->share->getTableName() . "
+      WHERE our_result = 'Y'
+      AND time > DATE_SUB(now(), INTERVAL ? SECOND)");
+    if ($this->checkStmt($stmt) && $stmt->bind_param('i', $interval) && $stmt->execute() && $result = $stmt->get_result())
+      return $this->memcache->setCache(__FUNCTION__, $result->fetch_object()->total);
+    return $this->sqlError();
   }
 }
 
