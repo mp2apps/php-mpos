@@ -132,6 +132,7 @@ class User extends Base {
       return false;
     }
     if ($this->checkUserPassword($username, $password)) {
+      $this->updateLoginTimestamp($this->getUserId($username));
       $this->createSession($username);
       if ($this->setUserIp($this->getUserId($username), $_SERVER['REMOTE_ADDR']))
         return true;
@@ -394,7 +395,7 @@ class User extends Base {
       $this->user = array('username' => $row_username, 'id' => $row_id, 'is_admin' => $row_admin);
       return strtolower($username) === strtolower($row_username);
     }
-    return false;
+    return $this->sqlError();
   }
 
   /**
@@ -409,6 +410,16 @@ class User extends Base {
     $_SESSION['AUTHENTICATED'] = '1';
     // $this->user from checkUserPassword
     $_SESSION['USERDATA'] = $this->user;
+  }
+
+  /**
+   * Update users last_login timestamp
+   * @param id int UserID
+   * @return bool true of false
+   **/
+  private function updateLoginTimestamp($id) {
+    $field = array('name' => 'last_login', 'type' => 'i', 'value' => time());
+    return $this->updateSingle($id, $field);
   }
 
   /**
